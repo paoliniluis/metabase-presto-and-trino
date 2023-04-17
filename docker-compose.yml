@@ -1,0 +1,118 @@
+version: '3.9'
+services:
+  metabase-presto-and-trino:
+    build: 
+      context: metabase-starburst/.
+    container_name: metabase-presto-and-trino
+    hostname: metabase-presto-and-trino
+    environment:
+      - JAVA_OPTS=-XX:MaxRAMPercentage=90
+    volumes: 
+    - /dev/urandom:/dev/random:ro
+    ports:
+     - 3000:3000
+    networks: 
+      - metanet
+    healthcheck:
+      test: curl --fail -I http://localhost:3000/api/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres-data1-presto-and-trino:
+        condition: service_healthy
+    cpus: 2
+    mem_limit: 512m
+  setup-presto-and-trino:
+    image: bash:5.1.16
+    container_name: setup-presto-and-trino
+    volumes:
+      - $PWD/setup:/tmp
+    networks:
+      - metanet
+    depends_on:
+      metabase-presto-and-trino:
+        condition: service_healthy
+      # presto:
+      #   condition: service_healthy
+    command: sh /tmp/metabase-setup.sh metabase-presto-and-trino:3000
+    cpus: 1
+    mem_limit: 128m
+  postgres-data1-presto-and-trino:
+    image: metabase/qa-databases:postgres-sample-12
+    container_name: postgres-data1-presto-and-trino
+    hostname: postgres-data1
+    networks: 
+      - metanet
+    cpus: 1
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metabase -d sample"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: -c log_statement=all
+  mysql-data1-presto-and-trino:
+    image: metabase/qa-databases:mysql-sample-8
+    container_name: mysql-data1-presto-and-trino
+    hostname: mysql-data1
+    networks: 
+      - metanet
+    cpus: 1
+    mem_limit: 512m
+    command: --general-log=1
+  mongo-data1:
+    image: paoliniluis/qa-databases:mongo-sample-5.0
+    container_name: mongo
+    hostname: mongo
+    networks: 
+      - metanet
+    cpus: 1
+    mem_limit: 128m
+  presto:
+    image: ahanaio/prestodb-sandbox:0.280
+    container_name: presto-server
+    hostname: presto-server
+    volumes: 
+    - /$PWD/presto-server/config.properties:/opt/presto-server/etc/config.properties
+    - /$PWD/presto-server/postgres.properties:/opt/presto-server/etc/catalog/postgres.properties
+    - /$PWD/presto-server/mysql.properties:/opt/presto-server/etc/catalog/mysql.properties
+    - /$PWD/presto-server/mongodb.properties:/opt/presto-server/etc/catalog/mongodb.properties
+    restart: always
+    ports:
+      - 8444:8443
+    networks:
+      - metanet
+    cpus: 1
+    mem_limit: 1024m
+  trino:
+    image: trinodb/trino:405
+    container_name: trino-server
+    hostname: trino-server
+    volumes: 
+    - /$PWD/trino-server/config.properties:/etc/trino/config.properties
+    - /$PWD/trino-server/postgres.properties:/etc/trino/catalog/postgres.properties
+    - /$PWD/trino-server/mongodb.properties:/etc/trino/catalog/mongodb.properties
+    - /$PWD/trino-server/mysql.properties:/etc/trino/catalog/mysql.properties
+    restart: always
+    ports:
+      - 8443:8443
+    networks:
+      - metanet
+    cpus: 1
+    mem_limit: 1024m
+    healthcheck:
+      test: /usr/lib/trino/bin/health-check
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    # healthcheck:
+    #   test: /usr/lib/trino/bin/health-check
+    #   interval: 30s
+    #   timeout: 30s
+    #   retries: 5
+    #   start_period: 30s
+networks: 
+  metanet:
+    driver: bridge
