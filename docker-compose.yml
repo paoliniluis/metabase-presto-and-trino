@@ -62,7 +62,7 @@ services:
     mem_limit: 512m
     command: --general-log=1
   mongo-data1:
-    image: paoliniluis/qa-databases:mongo-sample-5.0
+    image: paoliniluis/qa-databases:mongo-sample-5
     container_name: mongo
     hostname: mongo
     networks: 
