@@ -3,10 +3,13 @@ services:
   metabase-presto-and-trino:
     build: 
       context: metabase-starburst/.
+      args:
+        - MB_VERSION=v1.47.8
+        - SB_VERSION=4.1.0
     container_name: metabase-presto-and-trino
     hostname: metabase-presto-and-trino
     environment:
-      - JAVA_OPTS=-XX:MaxRAMPercentage=90
+      JAVA_TOOL_OPTIONS: -Xmx1488m -Xms500m
     volumes: 
     - /dev/urandom:/dev/random:ro
     ports:
@@ -46,6 +49,8 @@ services:
       - metanet
     cpus: 1
     mem_limit: 128m
+    ports:
+      - 5432:5432
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U metabase -d sample"]
       interval: 10s
@@ -62,7 +67,7 @@ services:
     mem_limit: 512m
     command: --general-log=1
   mongo-data1:
-    image: metabase/qa-databases:mongo-sample-5
+    image: metabase/qa-databases:mongo-sample-5.0
     container_name: mongo
     hostname: mongo
     networks: 
@@ -70,15 +75,20 @@ services:
     cpus: 1
     mem_limit: 128m
   presto:
-    image: ahanaio/prestodb-sandbox:0.280
+    build: 
+      context: presto-dockerfile/.
+      args: 
+        - PRESTO_VERSION=0.284
     container_name: presto-server
     hostname: presto-server
-    volumes: 
-    - /$PWD/presto-server/config.properties:/opt/presto-server/etc/config.properties
-    - /$PWD/presto-server/postgres.properties:/opt/presto-server/etc/catalog/postgres.properties
-    - /$PWD/presto-server/mysql.properties:/opt/presto-server/etc/catalog/mysql.properties
-    - /$PWD/presto-server/mongodb.properties:/opt/presto-server/etc/catalog/mongodb.properties
     restart: always
+    volumes: 
+    - /$PWD/presto-server/node.properties:/opt/presto/etc/node.properties
+    - /$PWD/presto-server/jvm.config:/opt/presto/etc/jvm.config
+    - /$PWD/presto-server/config.properties:/opt/presto/etc/config.properties
+    - /$PWD/presto-server/postgres.properties:/opt/presto/etc/catalog/postgres.properties
+    - /$PWD/presto-server/mysql.properties:/opt/presto/etc/catalog/mysql.properties
+    - /$PWD/presto-server/mongodb.properties:/opt/presto/etc/catalog/mongodb.properties
     ports:
       - 8444:8443
     networks:
@@ -86,7 +96,7 @@ services:
     cpus: 1
     mem_limit: 1024m
   trino:
-    image: trinodb/trino:405
+    image: trinodb/trino:420
     container_name: trino-server
     hostname: trino-server
     volumes: 
@@ -107,12 +117,6 @@ services:
       timeout: 30s
       retries: 5
       start_period: 30s
-    # healthcheck:
-    #   test: /usr/lib/trino/bin/health-check
-    #   interval: 30s
-    #   timeout: 30s
-    #   retries: 5
-    #   start_period: 30s
 networks: 
   metanet:
     driver: bridge
